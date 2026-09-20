@@ -13,4 +13,4 @@ dependencies = [
 dev = ["pytest"]
 
 [tool.setuptools]
-packages = ["agent", "config"]
+packages = ["agent", "config", "eval"]
