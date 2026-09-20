@@ -1,53 +1,90 @@
+import asyncio
 import json
-from openai import OpenAI
-from config.settings import openai_api_key, model_name
+from pathlib import Path
+from typing import Any
 
-client = OpenAI(api_key=openai_api_key)
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ResultMessage,
+    TextBlock,
+    create_sdk_mcp_server,
+    query,
+    tool,
+)
 
-RCA_TOOL_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "report_rca",
-        "description": "Report the root cause analysis and fix for a pipeline failure.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "error_msg": {
-                    "type": "string",
-                    "description": "A concise one-line summary of the error."
-                },
-                "rca_steps": {
-                    "type": "string",
-                    "description": "Step-by-step explanation of the likely root cause."
-                },
-                "step_to_fix": {
-                    "type": "string",
-                    "description": "Concrete steps to fix the issue."
-                },
-            },
-            "required": ["error_msg", "rca_steps", "step_to_fix"],
-            "additionalProperties": False,
-        },
-    },
-}
+from agent.prompts import SYSTEM_PROMPT
+from agent.schemas import RCAReport
+from agent.tools import get_table_schema as _get_table_schema
+from agent.tools import read_log_file as _read_log_file
 
 
-def get_rca_analysis(error_text: str) -> dict:
-    """Returns a dict with error_msg, rca_steps, step_to_fix."""
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=[
-            {"role": "user", "content": f"Analyze this pipeline failure:\n\n{error_text}"}
-        ],
-        tools=[RCA_TOOL_SCHEMA],
-        tool_choice={"type": "function", "function": {"name": "report_rca"}},
-    )
+@tool("read_log_file", "Reads a pipeline run's log file from disk, given its full path.", {"path": str})
+async def read_log_file_tool(args: dict[str, Any]) -> dict[str, Any]:
+    text = _read_log_file(args["path"])
+    return {"content": [{"type": "text", "text": text}]}
 
-    message = response.choices[0].message
-    if not message.tool_calls:
-        return {"error_msg": "No tool call returned", "rca_steps": "N/A", "step_to_fix": "N/A"}
 
+@tool(
+    "get_table_schema",
+    "Queries SQL Server for a table's real, current column names and types.",
+    {"table_name": str},
+)
+async def get_table_schema_tool(args: dict[str, Any]) -> dict[str, Any]:
+    columns = _get_table_schema(args["table_name"])
+    return {"content": [{"type": "text", "text": json.dumps(columns)}]}
+
+
+def _find_cli_path() -> str | None:
+    """The claude-agent-sdk wheel doesn't bundle claude.exe on this machine; fall back to
+    the native binary the VS Code Claude Code extension already ships, if present."""
+    matches = sorted(Path.home().glob(".vscode/extensions/anthropic.claude-code-*/resources/native-binary/claude.exe"))
+    return str(matches[-1]) if matches else None
+
+
+_opsfix_server = create_sdk_mcp_server(name="opsfix", tools=[read_log_file_tool, get_table_schema_tool])
+
+_OPTIONS = ClaudeAgentOptions(
+    system_prompt=SYSTEM_PROMPT,
+    mcp_servers={"opsfix": _opsfix_server},
+    allowed_tools=["mcp__opsfix__read_log_file", "mcp__opsfix__get_table_schema"],
+    output_format={"type": "json_schema", "schema": RCAReport.model_json_schema()},
+    cli_path=_find_cli_path(),
+)
+
+
+async def investigate_log_async(log_path: str) -> RCAReport | None:
+    """Runs a Claude Agent SDK session that investigates one pipeline log file and
+    returns a validated RCAReport, or None if the session didn't produce one."""
+    prompt = f"Investigate the pipeline run logged at: {log_path}"
+    result: RCAReport | None = None
+
+    messages = query(prompt=prompt, options=_OPTIONS)
     try:
-        return json.loads(message.tool_calls[0].function.arguments)
-    except json.JSONDecodeError:
-        return {"error_msg": "Failed to parse tool arguments", "rca_steps": "N/A", "step_to_fix": "N/A"}
+        async for message in messages:
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        print(f"[agent] {block.text}")
+
+            elif isinstance(message, ResultMessage):
+                if message.subtype == "success" and message.structured_output is not None:
+                    result = RCAReport.model_validate(message.structured_output)
+                elif message.subtype == "success":
+                    print("[pipeline] Session succeeded but produced no structured output")
+                else:
+                    print(f"[pipeline] Session did not succeed: {message.subtype}")
+                break
+    finally:
+        # query()'s underlying transport can raise on close if we stop iterating
+        # early (which we always do, right after the ResultMessage) -- harmless.
+        try:
+            await messages.aclose()
+        except RuntimeError:
+            pass
+
+    return result
+
+
+def investigate_log(log_path: str) -> RCAReport | None:
+    return asyncio.run(investigate_log_async(log_path))
