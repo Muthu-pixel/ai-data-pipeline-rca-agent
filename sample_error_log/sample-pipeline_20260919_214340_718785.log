@@ -1,0 +1,27 @@
+2026-09-19 21:43:40 INFO [run] Starting pipeline: orders_etl
+2026-09-19 21:43:40 INFO [run] Source file: C:\Users\91978\Documents\2026-AI-projects\sample-pipeline\main.py
+2026-09-19 21:43:40 INFO [run] Scenario: data_quality
+2026-09-19 21:43:40 INFO [extract] Extract stage started
+2026-09-19 21:43:40 INFO [extract] Querying dbo.orders_dq from SQL Server
+2026-09-19 21:43:40 INFO [extract] Extracted 20 rows total
+2026-09-19 21:43:40 INFO [extract] Columns found: ['order_id', 'customer_id', 'quantity', 'unit_price', 'order_date', 'metadata']
+2026-09-19 21:43:40 INFO [extract] Extract stage completed
+2026-09-19 21:43:40 INFO [validate] Validation stage started
+2026-09-19 21:43:40 INFO [validate] Validation stage completed
+2026-09-19 21:43:40 INFO [transform] Transform stage started
+2026-09-19 21:43:40 INFO [transform] Computed revenue for 5 customers
+2026-09-19 21:43:40 INFO [transform] Transform stage completed
+2026-09-19 21:43:40 INFO [enrich_orders] Enrich stage started
+2026-09-19 21:43:40 ERROR [run] Pipeline stage failed
+Traceback (most recent call last):
+  File "C:\Users\91978\Documents\2026-AI-projects\sample-pipeline\main.py", line 42, in run
+    enrich_orders(orders)
+    ~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\91978\Documents\2026-AI-projects\sample-pipeline\enrich.py", line 15, in enrich_orders
+    order["promo_code"] = parse_promo_code(metadata)
+                          ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\91978\Documents\2026-AI-projects\sample-pipeline\enrich.py", line 8, in parse_promo_code
+    return metadata["promo_code"]
+           ~~~~~~~~^^^^^^^^^^^^^^
+KeyError: 'promo_code'
+2026-09-19 21:43:40 ERROR [run] Pipeline run ended with status: FAILED

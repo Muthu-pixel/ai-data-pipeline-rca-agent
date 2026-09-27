@@ -1,0 +1,23 @@
+2026-09-19 18:07:58 INFO [run] Starting pipeline: orders_etl
+2026-09-19 18:07:58 INFO [run] Source file: C:\Users\91978\Documents\2026-AI-projects\sample-pipeline\main.py
+2026-09-19 18:07:58 INFO [run] Scenario: schema_drift
+2026-09-19 18:07:58 INFO [extract] Extract stage started
+2026-09-19 18:07:58 INFO [extract] Querying dbo.orders_drift from SQL Server
+2026-09-19 18:07:58 INFO [extract] Extracted 20 rows total
+2026-09-19 18:07:58 INFO [extract] Columns found: ['order_id', 'cust_id', 'quantity', 'unit_price', 'order_date']
+2026-09-19 18:07:58 INFO [extract] Extract stage completed
+2026-09-19 18:07:58 INFO [validate] Validation stage started
+2026-09-19 18:07:58 INFO [validate] Validation stage completed
+2026-09-19 18:07:58 INFO [transform] Transform stage started
+2026-09-19 18:07:58 ERROR [run] Transform stage failed
+Traceback (most recent call last):
+  File "C:\Users\91978\Documents\2026-AI-projects\sample-pipeline\main.py", line 34, in run
+    transform(orders)
+    ~~~~~~~~~^^^^^^^^
+  File "C:\Users\91978\Documents\2026-AI-projects\sample-pipeline\transform.py", line 11, in transform
+    revenue_by_customer = compute_customer_revenue(orders)
+  File "C:\Users\91978\Documents\2026-AI-projects\sample-pipeline\transform.py", line 21, in compute_customer_revenue
+    customer = order["customer_id"]
+               ~~~~~^^^^^^^^^^^^^^^
+KeyError: 'customer_id'
+2026-09-19 18:07:58 ERROR [run] Pipeline run ended with status: FAILED
