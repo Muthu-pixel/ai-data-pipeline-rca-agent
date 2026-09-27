@@ -1,0 +1,2 @@
+eval_date,total,correct,accuracy,confidently_wrong,confidently_wrong_rate,by_category
+2026-09-26T23:14:17,5,5,1.0,0,0.0,"{""data_quality"": {""total"": 2, ""correct"": 2, ""accuracy"": 1.0}, ""schema_drift"": {""total"": 3, ""correct"": 3, ""accuracy"": 1.0}}"

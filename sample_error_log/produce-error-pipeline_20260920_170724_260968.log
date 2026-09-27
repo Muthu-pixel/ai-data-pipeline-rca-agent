@@ -1,0 +1,14 @@
+2026-09-20 17:07:24 INFO [run] Starting pipeline: orders_etl
+2026-09-20 17:07:24 INFO [run] Source file: C:\Users\91978\Documents\2026-AI-projects\produce-error-pipeline\main.py
+2026-09-20 17:07:24 INFO [run] Scenario: healthy
+2026-09-20 17:07:24 INFO [extract] Extract stage started
+2026-09-20 17:07:24 INFO [extract] Querying dbo.orders_healthy from SQL Server
+2026-09-20 17:07:24 INFO [extract] Extracted 20 rows total
+2026-09-20 17:07:24 INFO [extract] Columns found: ['order_id', 'customer_id', 'quantity', 'unit_price', 'order_date']
+2026-09-20 17:07:24 INFO [extract] Extract stage completed
+2026-09-20 17:07:24 INFO [validate] Validation stage started
+2026-09-20 17:07:24 INFO [validate] Validation stage completed
+2026-09-20 17:07:24 INFO [transform] Transform stage started
+2026-09-20 17:07:24 INFO [transform] Computed revenue for 5 customers
+2026-09-20 17:07:24 INFO [transform] Transform stage completed
+2026-09-20 17:07:24 INFO [run] Pipeline run ended with status: SUCCESS

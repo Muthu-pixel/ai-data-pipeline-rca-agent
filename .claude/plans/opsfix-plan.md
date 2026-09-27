@@ -6,13 +6,17 @@
 
 **Working mode**: the user wants to build this **step by step, one piece at a time, to understand each part** — not a single large code drop. Each implementation turn should: build one concrete step, explain what it does and why, run/show it working, and pause before moving to the next step. The user also actively steers architecture as we go (see "Decisions made along the way" below) — treat this plan as a living document, not a fixed spec.
 
-## Status as of 2026-09-19
+## Status as of 2026-09-20
 
 **Done:** schema (now 2 live categories, see decision #1), evidence-extraction tools (including a live DB schema-introspection tool, see decision #8), a real fixture pipeline now covering 3 scenarios, a shared log intake folder, a unit test suite for the tools, and **a real working end-to-end agent** (step 4): `agent/pipeline.py` runs an actual `query()` session with `read_log_file` and `get_table_schema` as SDK tools, `output_format=RCAReport`, and `main.py` calls it for real on every `FAILED` log in `RCA_LOGS`.
 
 Verified against **both** live categories: `schema_drift` → confidence 0.97-0.98, correct category. `data_quality` → tested *before* `DATA_QUALITY` was uncommented (forced into the only available enum value, `schema_drift`) and the agent correctly self-corrected via calibration — confidence dropped to 0.15, `needs_more_context: true`, summary explicitly said "doesn't fit schema_drift" — good evidence the calibration design works. After uncommenting `DATA_QUALITY`, re-ran the same log: confidence 0.9, correct category, correct remediation (`.get()` with a default instead of a bare key lookup, quarantine bad rows instead of failing the whole batch). Both runs' evidence citations traced to real tool calls, nothing invented.
 
-**Not started:** `eval/` (step 5 — the natural next step now that there's a real agent to score, and now 2 categories to score it against), `agent/tracer.py`, `agent/output_handling.py` (the 3-branch logic currently lives inline in `pipeline.py`, not split out yet), `agent/approval.py`.
+**Step 5 — eval loop — DONE.** `eval/run_eval.py` scores the *existing* investigation history in `RCA_LOGS/results/rca_reports.csv` against ground truth, rather than re-running the agent (free to re-run any time, no new API spend). Ground truth comes from each log's own `Scenario: <name>` line via a new `extract_scenario()` tool — not a separate fixture file — via `eval/ground_truth.py`'s `{scenario_name: expected_category}` map. Appends a running history to `RCA_LOGS/results/eval_summary.csv`. First real run: 3/3 correct, 0 confidently-wrong, 100% in both categories.
+- **Metric correction from the original plan**: the plan called for "accuracy + FP rate," where FP meant "agent said FAILED on a healthy run." That doesn't apply here — `SUCCESS`/`FAILED` is decided by deterministic Python (`extract_error_sections`) *before* the agent is ever invoked (already unit-tested), so there's no agent-level false-positive-on-healthy-runs to measure. Replaced with **`confidently_wrong`**: wrong category *and* `needs_more_context == False` — the actually dangerous failure mode for this system (a wrong answer presented as trustworthy), directly testing whether the calibration signal (decision #12's `OTHER`/`needs_more_context` work) is doing its job.
+- Real bug found while wiring this up: a **stray empty `eval.py` at the project root** (leftover from the very original scaffold — see the Context section's "empty `eval.py`, empty `app.py`") was silently shadowing the new `eval/` package, making `from eval.metrics import ...` resolve to the empty file instead. Deleted it. Also discovered `pip install -e .` (documented in the README this whole time) had never actually been run in this venv — `main.py`'s imports only ever worked because it's always run from the project root, which happens to put root on `sys.path` too; a script in a subdirectory (like `eval/run_eval.py`) doesn't get that for free. Ran the real install now; `agent`/`config`/`eval` are genuinely importable from anywhere.
+
+**Not started:** `agent/tracer.py`, `agent/output_handling.py` (the 3-branch logic currently lives inline in `pipeline.py`, not split out yet), `agent/approval.py`.
 
 **Not yet touched:** the `synthetic/generate_fixtures.py` idea (superseded for now — see decision #3).
 
@@ -97,14 +101,31 @@ ai-data-pipeline-rca-agent/                 # this repo
                                    #   same instance/DB as sample-pipeline but owned independently
   main.py                         # DONE: cheap SUCCESS/FAILED pre-check via the tools, then calls
                                    #   agent.pipeline.investigate_log() -- the real agent -- on every
-                                   #   FAILED log; SUCCESS logs skipped (no LLM cost)
+                                   #   FAILED log; SUCCESS logs skipped (no LLM cost); appends each
+                                   #   report to results.py's CSV too
   pyproject.toml                  # DONE: python-dotenv, pydantic, pyodbc, claude-agent-sdk;
-                                   #   openai dependency dropped (spike is gone)
+                                   #   openai dependency dropped (spike is gone); packages now
+                                   #   ["agent", "config", "eval"] -- see eval.py gotcha below
+  eval/
+    ground_truth.py               # DONE: {scenario_name: expected_category} -- extend whenever
+                                   #   sample-pipeline gets a new scenario
+    metrics.py                    # DONE: EvalRecord (.correct, .confidently_wrong properties) +
+                                   #   summarize() -- accuracy, confidently_wrong_rate, per-category
+    run_eval.py                   # DONE: reads rca_reports.csv, cross-references each row's log
+                                   #   file for its Scenario line, scores against ground_truth,
+                                   #   prints a summary, appends a row to results/eval_summary.csv.
+                                   #   No new agent/API calls -- scores existing history.
   tests/test_tools.py             # DONE: unit tests for every tools.py function, including 2
                                    #   live queries against the real orders_healthy/orders_drift
                                    #   tables. No LLM involved (decision #10).
+  tests/test_results.py           # DONE: results.py's CSV writer, via a tmp_path override
+  tests/test_metrics.py           # DONE: eval/metrics.py's EvalRecord + summarize(), pure logic
   data/logs/sample_run.log        # superseded by RCA_LOGS/ (decision #4) -- left in place,
                                    #   unused by the current flow
+  eval.py                         # DELETED -- see the eval.py gotcha in Status above. If a stray
+                                   #   root-level eval.py, app.py, or similar ever reappears
+                                   #   (e.g. from a stash/merge), check it's not shadowing a
+                                   #   same-named package again before debugging import errors.
 
 RCA_LOGS/                         # NEW, sibling folder -- shared log intake (decision #4)
   <repo_name>_<timestamp>.log     # e.g. sample-pipeline_20260919_180757.log
@@ -137,7 +158,7 @@ Each numbered step below is one implementation session/turn with the user — bu
 2. ~~**Evidence tools**~~ **DONE, but evolved** — instead of a job-run-metadata tool + schema-diff-against-fabricated-expected-schema tool, built `extract_source_file`, `extract_columns_found`, and `parse_traceback` (structured exception/frame parsing) in `agent/tools.py`, all deriving evidence purely from real log content (decision #2). Verified against real pipeline logs, both scenarios.
 3. ~~**Fixture generator + 2 fixtures**~~ **DONE, but via a different mechanism** — no `synthetic/generate_fixtures.py`; instead a real, runnable, DB-backed pipeline (`sample-pipeline/`, decision #3) covering `healthy` and `schema_drift` scenarios, writing real logs to `RCA_LOGS/` (decision #4). Revisit the generator idea only when scaling to many fixtures at once (step 8 territory).
 4. ~~**`agent/pipeline.py` (minimal rewrite)**~~ **DONE (this session).** Swapped the OpenAI single-shot call for a `query()`-based Claude Agent SDK session (see decision #9 for why `query()` over `ClaudeSDKClient`: one instruction in, one structured result out, no multi-turn conversation needed). `read_log_file` + `get_table_schema` wrapped as SDK tools; `agent/prompts.py` written; `output_format=RCAReport.model_json_schema()`; starting instruction points at a log **path**, never a pre-extracted error string. Verified end-to-end against the real `schema_drift` log: correct category, confidence 0.97-0.98, evidence citations that trace to real tool calls, correct remediation naming the exact file/line. Two real gotchas hit and fixed — see the "CORRECTION" and "GOTCHA" bullets above (`cli_path` discovery, async generator cleanup).
-5. **`eval/run_eval.py` + `eval/metrics.py` (minimal: classification accuracy + FP rate) — NEXT STEP, NOT STARTED.** Milestone: a scored loop exists. Everything after this is measured, not eyeballed. Trivially runnable now against the `sample-pipeline` healthy/schema_drift pair by calling `agent.pipeline.investigate_log()` (already proven working) instead of static fixture files. With only one category and 2 scenarios, expect this to start as a very small scorecard (2 runs), not a real statistical eval — that's fine, it's about proving the scoring mechanism works before the corpus grows (step 8).
+5. ~~**`eval/run_eval.py` + `eval/metrics.py`**~~ **DONE.** Milestone hit: a scored loop exists. Built to re-score `rca_reports.csv`'s existing history rather than call the agent again (see Status section for the design and the metric correction from "FP rate" to "confidently wrong"). First real run: 3/3 correct, 0 confidently-wrong. Small scorecard for now (one row per category) — that's expected and fine; the mechanism is what mattered, not statistical significance yet. Grows automatically as more categories/runs accumulate — no further eval code changes needed for that, just more data.
 6. **`agent/tracer.py`** — instrument the now-working loop; add tool-call-efficiency + latency to `metrics.py`.
 7. Remaining tool tiers (logs search, dependency lineage, runbook RAG, pipeline source read) — one at a time, each paired with a new `FailureCategory` being uncommented and a new `sample-pipeline` scenario/table that actually exercises it (decision #1 + #3 combined: category and real fixture arrive together). RAG (`rag/index.py`, BM25/TF-IDF — no embeddings API needed for a small runbook corpus) arrives with the runbook tool.
 8. Full corpus across all categories + healthy control set — likely where the `synthetic/generate_fixtures.py` idea gets revisited, since hand-building a `sample-pipeline` scenario per variant won't scale as well as a generator would.

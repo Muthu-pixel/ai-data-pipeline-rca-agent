@@ -41,6 +41,14 @@ def extract_source_file(log_text: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
+def extract_scenario(log_text: str) -> str | None:
+    """Parses the 'Scenario: <name>' line sample-pipeline logs at startup. This is the
+    source of ground truth for eval -- the scenario name a fixture was deliberately run
+    as, e.g. 'schema_drift', which should equal the category the agent classifies it as."""
+    match = re.search(r"Scenario: (.+)", log_text)
+    return match.group(1).strip() if match else None
+
+
 def extract_queried_table(log_text: str) -> str | None:
     """Parses the 'Querying dbo.<table> from SQL Server' line, identifying which table a run
     actually read from -- just enough to know what to ask get_table_schema about."""

@@ -1,4 +1,4 @@
-import csv
+import json
 from pathlib import Path
 
 from agent.results import append_report
@@ -15,37 +15,35 @@ REPORT = RCAReport(
 )
 
 
-def test_append_report_writes_header_and_row(tmp_path):
-    csv_path = tmp_path / "rca_reports.csv"
+def test_append_report_writes_one_json_line(tmp_path):
+    results_path = tmp_path / "rca_reports.jsonl"
     log_path = Path("sample-pipeline_20260919_214340_426707.log")
 
-    append_report(REPORT, log_path, csv_path=csv_path)
+    append_report(REPORT, log_path, results_path=results_path)
 
-    with open(csv_path, newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
+    lines = results_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    row = json.loads(lines[0])
 
-    assert len(rows) == 1
-    row = rows[0]
     assert row["run_id"] == "sample-pipeline_20260919_214340_426707"
     assert row["log_file"] == "sample-pipeline_20260919_214340_426707.log"
     assert row["category"] == "schema_drift"
-    assert row["confidence"] == "0.97"
-    assert row["needs_more_context"] == "False"
-    assert row["remediation_summary"] == "use cust_id"
+    assert row["confidence"] == 0.97
+    assert row["needs_more_context"] is False
+    assert row["remediation"]["summary"] == "use cust_id"
+    assert row["remediation"]["steps"] == ["Step 1: update transform.py"]
     assert row["run_id_unique_id"]  # a uuid was generated
 
 
-def test_append_report_appends_without_duplicating_header(tmp_path):
-    csv_path = tmp_path / "rca_reports.csv"
+def test_append_report_appends_one_line_per_call(tmp_path):
+    results_path = tmp_path / "rca_reports.jsonl"
     log_path = Path("sample-pipeline_20260919_214340_426707.log")
 
-    append_report(REPORT, log_path, csv_path=csv_path)
-    append_report(REPORT, log_path, csv_path=csv_path)
+    append_report(REPORT, log_path, results_path=results_path)
+    append_report(REPORT, log_path, results_path=results_path)
 
-    lines = csv_path.read_text(encoding="utf-8").splitlines()
-    assert lines[0].startswith("create_date,run_id,run_id_unique_id")
-    assert len(lines) == 3  # 1 header + 2 rows
-    # the two rows get different run_id_unique_id even for the same log
-    with open(csv_path, newline="", encoding="utf-8") as f:
-        rows = list(csv.DictReader(f))
+    lines = results_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 2
+    rows = [json.loads(line) for line in lines]
+    # each call gets its own run_id_unique_id even for the same log
     assert rows[0]["run_id_unique_id"] != rows[1]["run_id_unique_id"]

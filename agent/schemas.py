@@ -14,8 +14,8 @@ from pydantic import BaseModel, Field, model_validator
 class FailureCategory(str, Enum):
     SCHEMA_DRIFT = "schema_drift"
     DATA_QUALITY = "data_quality"
-    #CODE_BUG = "code_bug"
-    #INFRA_TIMEOUT = "infra_timeout"
+    INFRA_TIMEOUT = "infra_timeout"
+    CODE_BUG = "code_bug"
     #CREDENTIAL_CONFIG = "credential_config"
     #RESOURCE_EXHAUSTION = "resource_exhaustion"
     OTHER = "other"
@@ -35,7 +35,13 @@ class ImpactAnalysis(BaseModel):
 
 class RemediationSuggestion(BaseModel):
     summary: str = Field(description="One-line description of the suggested fix.")
-    steps: list[str] = Field(description="Concrete, ordered steps an SRE would take to apply the fix.")
+    steps: list[str] = Field(
+        description=(
+            "Concrete, ordered steps an SRE would take to apply the fix. Each step is one "
+            "short, imperative sentence, 15 words or fewer -- no multi-sentence steps, no "
+            "explanations or caveats (those go in risk_notes)."
+        )
+    )
     risk_notes: str = Field(description="Caveats or risks of applying this fix, if any.")
 
 

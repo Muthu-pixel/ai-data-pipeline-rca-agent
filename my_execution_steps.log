@@ -1,0 +1,15 @@
+PS C:\Users\91978\Documents\2026-AI-projects\ai-data-pipeline-rca-agent> py --version
+Python 3.13.1
+PS C:\Users\91978\Documents\2026-AI-projects\ai-data-pipeline-rca-agent> py -m venv venv
+PS C:\Users\91978\Documents\2026-AI-projects\ai-data-pipeline-rca-agent> venv\Scripts\activate
+venv\Scripts\activate : File C:\Users\91978\Documents\2026-AI-projects\ai-data-pipeline-rca-agent\venv\Scripts\Activate.ps1 cannot be loaded 
+because running scripts is disabled on this system. For more information, see about_Execution_Policies at 
+https:/go.microsoft.com/fwlink/?LinkID=135170.
+At line:1 char:1
++ venv\Scripts\activate
++ ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : SecurityError: (:) [], PSSecurityException
+    + FullyQualifiedErrorId : UnauthorizedAccess
+PS C:\Users\91978\Documents\2026-AI-projects\ai-data-pipeline-rca-agent> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+PS C:\Users\91978\Documents\2026-AI-projects\ai-data-pipeline-rca-agent> venv\Scripts\activate                                               
+(venv) PS C:\Users\91978\Documents\2026-AI-projects\ai-data-pipeline-rca-agent> 

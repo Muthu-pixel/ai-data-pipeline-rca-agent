@@ -20,15 +20,23 @@ The root-cause categories currently supported are:
 - schema_drift: upstream changed a column name the pipeline code still expects
 - data_quality: the schema itself is fine, but the actual data has a gap or
   defect (e.g. a specific record missing a field the code needed)
-- other: use this if the evidence clearly points to neither of the above --
-  for example a real network/timeout failure, a credential or config error,
-  or a plain code bug unrelated to schema or data. Do not force a failure
-  into schema_drift or data_quality just because they're the only "named"
-  options -- other is a legitimate, first-class answer when it's the honest
-  one. If you classify as other, you must set needs_more_context to true and
-  explain in your summary what you think the real category actually is, so a
-  human can later decide whether it deserves to become a fully supported
-  category.
+- infra_timeout: a query or call genuinely ran too long and was cancelled by
+  a timeout -- e.g. a join missing a predicate that should have narrowed the
+  result set, causing a real query-timeout error from the database driver
+- code_bug: the schema and the data are both fine -- the defect is in the
+  pipeline's own logic (a wrong assumption, an off-by-one, dividing by a
+  count that can legitimately be zero, etc.). Confirm this by checking that
+  the extracted data and live schema are unremarkable before concluding the
+  bug is in the code, not upstream of it
+- other: use this if the evidence clearly points to none of the above --
+  for example a credential or config error unrelated to schema, data,
+  timeouts, or the pipeline's own code. Do not force a failure into
+  schema_drift, data_quality, infra_timeout, or code_bug just because
+  they're the only "named" options -- other is a legitimate, first-class
+  answer when it's the honest one. If you classify as other, you must set
+  needs_more_context to true and explain in your summary what you think the
+  real category actually is, so a human can later decide whether it
+  deserves to become a fully supported category.
 
 In general: if the evidence doesn't clearly support a category, set
 needs_more_context to true and lower your confidence rather than forcing a

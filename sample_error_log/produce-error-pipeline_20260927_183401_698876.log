@@ -1,0 +1,35 @@
+2026-09-27 18:34:01 INFO [run] Starting pipeline: orders_etl
+2026-09-27 18:34:01 INFO [run] Source file: C:\Users\91978\Documents\2026-AI-projects\produce-error-pipeline\main.py
+2026-09-27 18:34:01 INFO [run] Scenario: data_quality_malformed
+2026-09-27 18:34:01 INFO [extract] Extract stage started
+2026-09-27 18:34:01 INFO [extract] Querying dbo.orders_dq_malformed from SQL Server
+2026-09-27 18:34:01 INFO [extract] Extracted 20 rows total
+2026-09-27 18:34:01 INFO [extract] Columns found: ['order_id', 'customer_id', 'quantity', 'unit_price', 'order_date', 'metadata']
+2026-09-27 18:34:01 INFO [extract] Extract stage completed
+2026-09-27 18:34:01 INFO [validate] Validation stage started
+2026-09-27 18:34:01 INFO [validate] Validation stage completed
+2026-09-27 18:34:01 INFO [transform] Transform stage started
+2026-09-27 18:34:01 INFO [transform] Computed revenue for 5 customers
+2026-09-27 18:34:01 INFO [transform] Transform stage completed
+2026-09-27 18:34:01 INFO [enrich_orders] Enrich stage started
+2026-09-27 18:34:01 ERROR [run] Pipeline stage failed
+Traceback (most recent call last):
+  File "C:\Users\91978\Documents\2026-AI-projects\produce-error-pipeline\main.py", line 47, in run
+    SCENARIOS[scenario]()
+    ~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\91978\Documents\2026-AI-projects\produce-error-pipeline\src\scenarios\data_quality_malformed.py", line 14, in run
+    enrich_orders(orders)
+    ~~~~~~~~~~~~~^^^^^^^^
+  File "C:\Users\91978\Documents\2026-AI-projects\produce-error-pipeline\src\pipeline\enrich.py", line 14, in enrich_orders
+    metadata = json.loads(order["metadata"])
+  File "C:\Users\91978\AppData\Local\Programs\Python\Python313\Lib\json\__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^
+  File "C:\Users\91978\AppData\Local\Programs\Python\Python313\Lib\json\decoder.py", line 345, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\91978\AppData\Local\Programs\Python\Python313\Lib\json\decoder.py", line 361, in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ~~~~~~~~~~~~~~^^^^^^^^
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+2026-09-27 18:34:01 ERROR [run] Pipeline run ended with status: FAILED
